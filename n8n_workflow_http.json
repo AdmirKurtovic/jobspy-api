@@ -1,0 +1,269 @@
+{
+  "name": "JobSpy HTTP Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scrape-jobs",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "start",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "jobspy-webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "http://localhost:8000/scrape-jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "site_name",
+              "value": "={{ $json.site_name || [\"indeed\", \"linkedin\"] }}"
+            },
+            {
+              "name": "search_term",
+              "value": "={{ $json.search_term }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "results_wanted",
+              "value": "={{ $json.results_wanted || 15 }}"
+            },
+            {
+              "name": "country_indeed",
+              "value": "={{ $json.country_indeed || \"USA\" }}"
+            },
+            {
+              "name": "hours_old",
+              "value": "={{ $json.hours_old }}"
+            },
+            {
+              "name": "is_remote",
+              "value": "={{ $json.is_remote || false }}"
+            },
+            {
+              "name": "job_type",
+              "value": "={{ $json.job_type }}"
+            },
+            {
+              "name": "linkedin_fetch_description",
+              "value": "={{ $json.linkedin_fetch_description || false }}"
+            },
+            {
+              "name": "description_format",
+              "value": "={{ $json.description_format || \"markdown\" }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "http-request",
+      "name": "Scrape Jobs API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-success",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process successful job scraping results\nconst response = $input.first().json;\n\n// Extract jobs and metadata\nconst jobs = response.jobs || [];\nconst metadata = response.metadata || {};\n\n// Process each job\nconst processedJobs = jobs.map((job, index) => {\n  return {\n    id: job.id || `job-${index}`,\n    title: job.title || 'N/A',\n    company: job.company_name || 'N/A',\n    location: job.location?.city || job.location?.state || 'N/A',\n    job_url: job.job_url || '',\n    job_url_direct: job.job_url_direct || '',\n    company_url: job.company_url || '',\n    description: job.description || '',\n    job_type: job.job_type || [],\n    compensation: job.compensation || null,\n    date_posted: job.date_posted || null,\n    is_remote: job.is_remote || false,\n    site: job.site || 'unknown',\n    // Additional fields\n    company_industry: job.company_industry || null,\n    company_logo: job.company_logo || null,\n    skills: job.skills || null,\n    experience_range: job.experience_range || null,\n    company_rating: job.company_rating || null,\n    company_reviews_count: job.company_reviews_count || null\n  };\n});\n\n// Return processed data\nreturn {\n  success: true,\n  total_jobs: processedJobs.length,\n  jobs: processedJobs,\n  metadata: metadata,\n  processed_at: new Date().toISOString()\n};"
+      },
+      "id": "process-jobs",
+      "name": "Process Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle error case\nconst response = $input.first().json;\n\nreturn {\n  success: false,\n  error: response.error || 'Unknown error occurred',\n  traceback: response.traceback || null,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "handle-error",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://your-webhook-url.com/job-results",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ $json }}"
+            }
+          ]
+        }
+      },
+      "id": "send-results",
+      "name": "Send Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://your-webhook-url.com/job-errors",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "error",
+              "value": "={{ $json }}"
+            }
+          ]
+        }
+      },
+      "id": "send-error",
+      "name": "Send Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 500]
+    }
+  ],
+  "connections": {
+    "start": {
+      "main": [
+        [
+          {
+            "node": "Scrape Jobs API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Jobs API": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Process Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Jobs": {
+      "main": [
+        [
+          {
+            "node": "Send Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "jobspy-http-workflow",
+  "tags": []
+}

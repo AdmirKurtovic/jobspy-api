@@ -1,0 +1,60 @@
+{
+  "search_configs": {
+    "product_designer_remote": {
+      "search_term": "Product Designer UI UX Designer",
+      "location": "Worldwide",
+      "results_wanted": 20,
+      "is_remote": true,
+      "site_name": ["indeed", "linkedin", "glassdoor", "google"],
+      "country_indeed": "USA",
+      "hours_old": 168,
+      "job_type": "fulltime",
+      "linkedin_fetch_description": true,
+      "description_format": "markdown"
+    },
+    "ui_ux_designer_remote": {
+      "search_term": "UI UX Designer User Experience Designer",
+      "location": "Worldwide", 
+      "results_wanted": 15,
+      "is_remote": true,
+      "site_name": ["indeed", "linkedin", "glassdoor"],
+      "country_indeed": "USA",
+      "hours_old": 72,
+      "job_type": "fulltime",
+      "linkedin_fetch_description": true,
+      "description_format": "markdown"
+    },
+    "designer_anywhere": {
+      "search_term": "Product Designer UI Designer UX Designer",
+      "location": "Remote",
+      "results_wanted": 25,
+      "is_remote": true,
+      "site_name": ["indeed", "linkedin", "glassdoor", "google", "zip_recruiter"],
+      "country_indeed": "USA",
+      "hours_old": 240,
+      "job_type": "fulltime",
+      "linkedin_fetch_description": true,
+      "description_format": "markdown"
+    }
+  },
+  "sample_requests": {
+    "basic_designer_search": {
+      "search_term": "Product Designer UI UX Designer",
+      "location": "Worldwide",
+      "results_wanted": 10,
+      "is_remote": true
+    },
+    "detailed_designer_search": {
+      "search_term": "Product Designer UI UX Designer",
+      "location": "Worldwide",
+      "results_wanted": 20,
+      "is_remote": true,
+      "site_name": ["indeed", "linkedin", "glassdoor"],
+      "country_indeed": "USA",
+      "hours_old": 168,
+      "job_type": "fulltime",
+      "linkedin_fetch_description": true,
+      "description_format": "markdown"
+    }
+  }
+}

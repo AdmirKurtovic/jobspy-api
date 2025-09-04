@@ -1,0 +1,232 @@
+{
+  "name": "JobSpy Code Node Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "scrape-jobs-code",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "start",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "jobspy-code-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare input data for Python code node\nconst inputData = $input.first().json;\n\n// Set default values\nconst data = {\n  site_name: inputData.site_name || ['indeed', 'linkedin'],\n  search_term: inputData.search_term || '',\n  location: inputData.location || '',\n  results_wanted: inputData.results_wanted || 15,\n  country_indeed: inputData.country_indeed || 'USA',\n  hours_old: inputData.hours_old || null,\n  is_remote: inputData.is_remote || false,\n  job_type: inputData.job_type || null,\n  easy_apply: inputData.easy_apply || null,\n  linkedin_fetch_description: inputData.linkedin_fetch_description || false,\n  description_format: inputData.description_format || 'markdown',\n  proxies: inputData.proxies || null,\n  offset: inputData.offset || 0,\n  google_search_term: inputData.google_search_term || null,\n  distance: inputData.distance || 50,\n  linkedin_company_ids: inputData.linkedin_company_ids || null,\n  enforce_annual_salary: inputData.enforce_annual_salary || false,\n  verbose: inputData.verbose || 0,\n  user_agent: inputData.user_agent || null\n};\n\nreturn { json: data };"
+      },
+      "id": "prepare-data",
+      "name": "Prepare Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "pythonCode": "# JobSpy Code Node Implementation\n# Note: This requires JobSpy to be installed in the n8n environment\n\nimport sys\nimport json\nimport pandas as pd\nfrom datetime import datetime\nimport traceback\n\n# Import JobSpy (this might not work in n8n Cloud due to environment limitations)\ntry:\n    from jobspy import scrape_jobs\n    from jobspy.model import Site, Country\n    jobspy_available = True\nexcept ImportError:\n    jobspy_available = False\n    print(\"JobSpy not available in this environment\")\n\n# Get input data\ninput_data = $input.first().json\n\n# Validate required parameters\nif not input_data.get('search_term'):\n    return {\n        \"success\": False,\n        \"error\": \"search_term is required\",\n        \"timestamp\": datetime.now().isoformat()\n    }\n\nif not jobspy_available:\n    return {\n        \"success\": False,\n        \"error\": \"JobSpy is not available in this n8n environment. Please use the HTTP Request approach instead.\",\n        \"timestamp\": datetime.now().isoformat()\n    }\n\ntry:\n    # Extract parameters\n    site_name = input_data.get('site_name', ['indeed', 'linkedin'])\n    search_term = input_data.get('search_term')\n    location = input_data.get('location')\n    results_wanted = input_data.get('results_wanted', 15)\n    country_indeed = input_data.get('country_indeed', 'USA')\n    hours_old = input_data.get('hours_old')\n    is_remote = input_data.get('is_remote', False)\n    job_type = input_data.get('job_type')\n    easy_apply = input_data.get('easy_apply')\n    linkedin_fetch_description = input_data.get('linkedin_fetch_description', False)\n    description_format = input_data.get('description_format', 'markdown')\n    proxies = input_data.get('proxies')\n    offset = input_data.get('offset', 0)\n    google_search_term = input_data.get('google_search_term')\n    distance = input_data.get('distance', 50)\n    linkedin_company_ids = input_data.get('linkedin_company_ids')\n    enforce_annual_salary = input_data.get('enforce_annual_salary', False)\n    verbose = input_data.get('verbose', 0)\n    user_agent = input_data.get('user_agent')\n    \n    print(f\"Scraping jobs for: {search_term} in {location}\")\n    \n    # Call JobSpy\n    jobs_df = scrape_jobs(\n        site_name=site_name,\n        search_term=search_term,\n        google_search_term=google_search_term,\n        location=location,\n        distance=distance,\n        is_remote=is_remote,\n        job_type=job_type,\n        easy_apply=easy_apply,\n        results_wanted=results_wanted,\n        country_indeed=country_indeed,\n        proxies=proxies,\n        description_format=description_format,\n        linkedin_fetch_description=linkedin_fetch_description,\n        linkedin_company_ids=linkedin_company_ids,\n        offset=offset,\n        hours_old=hours_old,\n        enforce_annual_salary=enforce_annual_salary,\n        verbose=verbose,\n        user_agent=user_agent\n    )\n    \n    # Convert DataFrame to list of dictionaries\n    jobs_list = jobs_df.to_dict('records')\n    \n    # Clean up the data for JSON serialization\n    for job in jobs_list:\n        for key, value in job.items():\n            if pd.isna(value):\n                job[key] = None\n            elif hasattr(value, 'isoformat'):\n                job[key] = value.isoformat()\n    \n    response = {\n        \"success\": True,\n        \"total_jobs\": len(jobs_list),\n        \"jobs\": jobs_list,\n        \"metadata\": {\n            \"search_term\": search_term,\n            \"location\": location,\n            \"sites_searched\": site_name,\n            \"timestamp\": datetime.now().isoformat(),\n            \"results_wanted\": results_wanted,\n            \"actual_results\": len(jobs_list)\n        }\n    }\n    \n    print(f\"Successfully scraped {len(jobs_list)} jobs\")\n    return response\n    \nexcept Exception as e:\n    error_msg = str(e)\n    print(f\"Error scraping jobs: {error_msg}\")\n    print(traceback.format_exc())\n    \n    return {\n        \"success\": False,\n        \"error\": error_msg,\n        \"traceback\": traceback.format_exc(),\n        \"timestamp\": datetime.now().isoformat()\n    }"
+      },
+      "id": "scrape-jobs-python",
+      "name": "Scrape Jobs (Python)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-success",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process successful job scraping results\nconst response = $input.first().json;\n\n// Extract jobs and metadata\nconst jobs = response.jobs || [];\nconst metadata = response.metadata || {};\n\n// Process each job for better formatting\nconst processedJobs = jobs.map((job, index) => {\n  return {\n    id: job.id || `job-${index}`,\n    title: job.title || 'N/A',\n    company: job.company_name || 'N/A',\n    location: job.location?.city || job.location?.state || 'N/A',\n    job_url: job.job_url || '',\n    job_url_direct: job.job_url_direct || '',\n    company_url: job.company_url || '',\n    description: job.description || '',\n    job_type: job.job_type || [],\n    compensation: job.compensation || null,\n    date_posted: job.date_posted || null,\n    is_remote: job.is_remote || false,\n    site: job.site || 'unknown',\n    // Additional fields\n    company_industry: job.company_industry || null,\n    company_logo: job.company_logo || null,\n    skills: job.skills || null,\n    experience_range: job.experience_range || null,\n    company_rating: job.company_rating || null,\n    company_reviews_count: job.company_reviews_count || null\n  };\n});\n\n// Return processed data\nreturn {\n  success: true,\n  total_jobs: processedJobs.length,\n  jobs: processedJobs,\n  metadata: metadata,\n  processed_at: new Date().toISOString()\n};"
+      },
+      "id": "process-jobs",
+      "name": "Process Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle error case\nconst response = $input.first().json;\n\nreturn {\n  success: false,\n  error: response.error || 'Unknown error occurred',\n  traceback: response.traceback || null,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "handle-error",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://your-webhook-url.com/job-results",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "data",
+              "value": "={{ $json }}"
+            }
+          ]
+        }
+      },
+      "id": "send-results",
+      "name": "Send Results",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://your-webhook-url.com/job-errors",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "error",
+              "value": "={{ $json }}"
+            }
+          ]
+        }
+      },
+      "id": "send-error",
+      "name": "Send Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 500]
+    }
+  ],
+  "connections": {
+    "start": {
+      "main": [
+        [
+          {
+            "node": "Prepare Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Data": {
+      "main": [
+        [
+          {
+            "node": "Scrape Jobs (Python)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Jobs (Python)": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Process Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Jobs": {
+      "main": [
+        [
+          {
+            "node": "Send Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "jobspy-code-workflow",
+  "tags": []
+}
