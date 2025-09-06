@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+README*
+
+# n8n workflows
+n8n_*.json
+
+# Scripts
+*.sh
+setup.sh
+deploy_to_cloud.sh
+keep_ngrok_alive.sh
+
+# Other Python files
+test_*.py
+*_deploy.py
+*_requirements.txt
+
+# Config files
+*.config
+designer_search_config.json
+
+# Other
+.DS_Store
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
