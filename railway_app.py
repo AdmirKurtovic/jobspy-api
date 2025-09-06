@@ -147,7 +147,16 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8000))
+    # Try to get port from environment, fallback to 8000
+    port_str = os.environ.get('PORT', '8000')
+    try:
+        port = int(port_str)
+    except (ValueError, TypeError):
+        port = 8000
+        logger.warning(f"Invalid PORT value '{port_str}', using default 8000")
+    
     logger.info(f"Starting server on port {port}")
     print(f"Starting server on port {port}")
+    print(f"Environment PORT: {os.environ.get('PORT', 'NOT SET')}")
+    
     app.run(host='0.0.0.0', port=port, debug=False)
