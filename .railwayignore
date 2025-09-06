@@ -1,0 +1,6 @@
+# Ignore everything except essential files
+*
+!minimal_app.py
+!requirements.txt
+!Procfile
+!Dockerfile
