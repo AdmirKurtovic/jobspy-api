@@ -9,6 +9,16 @@ from flask_cors import CORS
 from datetime import datetime
 import logging
 import os
+import pandas as pd
+
+# Import JobSpy for real job scraping
+try:
+    from jobspy import scrape_jobs
+    JOBSPY_AVAILABLE = True
+    logging.info("JobSpy imported successfully")
+except ImportError as e:
+    JOBSPY_AVAILABLE = False
+    logging.warning(f"JobSpy not available: {e}")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +33,8 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "service": "jobspy-api",
-        "message": "API is running successfully"
+        "message": "API is running successfully",
+        "jobspy_available": JOBSPY_AVAILABLE
     })
 
 @app.route('/', methods=['GET'])
@@ -58,86 +69,90 @@ def scrape_jobs_endpoint():
         location = data.get('location', '')
         results_wanted = data.get('results_wanted', 15)
         site_name = data.get('site_name', ['indeed', 'linkedin'])
+        country_indeed = data.get('country_indeed', 'USA')
+        hours_old = data.get('hours_old', 24)
+        is_remote = data.get('is_remote', False)
+        job_type = data.get('job_type', 'fulltime')
+        linkedin_fetch_description = data.get('linkedin_fetch_description', False)
         
-        # Return mock job data
-        mock_jobs = [
-            {
-                "title": f"Senior {search_term} Developer",
-                "company": "TechCorp Inc",
-                "location": location or "San Francisco, CA",
-                "job_url": "https://example.com/job/1",
-                "site": "indeed",
-                "date_posted": "2024-01-15",
-                "description": f"Join our team as a Senior {search_term} developer. We're looking for someone passionate about technology and innovation...",
-                "salary": "$120,000 - $180,000",
-                "job_type": "fulltime",
-                "is_remote": True
-            },
-            {
-                "title": f"{search_term} Engineer",
-                "company": "StartupXYZ",
-                "location": location or "New York, NY",
-                "job_url": "https://example.com/job/2",
-                "site": "linkedin",
-                "date_posted": "2024-01-14",
-                "description": f"Exciting opportunity for a {search_term} engineer to work on cutting-edge projects...",
-                "salary": "$100,000 - $150,000",
-                "job_type": "fulltime",
-                "is_remote": False
-            },
-            {
-                "title": f"Remote {search_term} Specialist",
-                "company": "GlobalTech",
-                "location": "Remote",
-                "job_url": "https://example.com/job/3",
-                "site": "glassdoor",
-                "date_posted": "2024-01-13",
-                "description": f"Fully remote position for a {search_term} specialist. Work from anywhere in the world...",
-                "salary": "$90,000 - $130,000",
-                "job_type": "fulltime",
-                "is_remote": True
-            },
-            {
-                "title": f"Lead {search_term} Architect",
-                "company": "Enterprise Solutions",
-                "location": location or "Austin, TX",
-                "job_url": "https://example.com/job/4",
-                "site": "indeed",
-                "date_posted": "2024-01-12",
-                "description": f"Lead {search_term} architect position with excellent growth opportunities...",
-                "salary": "$140,000 - $200,000",
-                "job_type": "fulltime",
-                "is_remote": False
-            },
-            {
-                "title": f"Junior {search_term} Developer",
-                "company": "Learning Corp",
-                "location": location or "Seattle, WA",
-                "job_url": "https://example.com/job/5",
-                "site": "linkedin",
-                "date_posted": "2024-01-11",
-                "description": f"Perfect entry-level position for aspiring {search_term} developers...",
-                "salary": "$70,000 - $90,000",
-                "job_type": "fulltime",
-                "is_remote": True
-            }
-        ]
+        if JOBSPY_AVAILABLE:
+            # Use real JobSpy for job scraping
+            logger.info(f"Using real JobSpy to scrape jobs for: {search_term}")
+            
+            jobs_df = scrape_jobs(
+                search_term=search_term,
+                location=location,
+                results_wanted=results_wanted,
+                site_name=site_name,
+                country_indeed=country_indeed,
+                hours_old=hours_old,
+                is_remote=is_remote,
+                job_type=job_type,
+                linkedin_fetch_description=linkedin_fetch_description
+            )
+            
+            if jobs_df.empty:
+                return jsonify({
+                    "message": "No jobs found",
+                    "jobs": [],
+                    "count": 0,
+                    "search_params": {
+                        "search_term": search_term,
+                        "location": location,
+                        "results_wanted": results_wanted,
+                        "site_name": site_name
+                    },
+                    "source": "jobspy_real"
+                })
+            
+            # Convert DataFrame to JSON-serializable format
+            jobs_list = []
+            for _, job in jobs_df.iterrows():
+                job_dict = {
+                    "title": str(job.get('title', '')),
+                    "company": str(job.get('company', '')),
+                    "location": str(job.get('location', '')),
+                    "job_url": str(job.get('job_url', '')),
+                    "site": str(job.get('site', '')),
+                    "date_posted": str(job.get('date_posted', '')),
+                    "description": str(job.get('description', '')),
+                    "salary": str(job.get('salary', '')),
+                    "job_type": str(job.get('job_type', '')),
+                    "is_remote": bool(job.get('is_remote', False))
+                }
+                jobs_list.append(job_dict)
+            
+            return jsonify({
+                "message": f"Successfully scraped {len(jobs_list)} real jobs for '{search_term}'",
+                "jobs": jobs_list,
+                "count": len(jobs_list),
+                "search_params": {
+                    "search_term": search_term,
+                    "location": location,
+                    "results_wanted": results_wanted,
+                    "site_name": site_name
+                },
+                "source": "jobspy_real"
+            })
         
-        # Limit results based on results_wanted
-        limited_jobs = mock_jobs[:min(results_wanted, len(mock_jobs))]
-        
-        return jsonify({
-            "message": f"Successfully scraped {len(limited_jobs)} jobs for '{search_term}'",
-            "jobs": limited_jobs,
-            "count": len(limited_jobs),
-            "search_params": {
-                "search_term": search_term,
-                "location": location,
-                "results_wanted": results_wanted,
-                "site_name": site_name
-            },
-            "note": "This is mock data. For real job scraping, install JobSpy package."
-        })
+        else:
+            # Fallback to mock data if JobSpy not available
+            logger.warning("JobSpy not available, using mock data")
+            mock_jobs = generate_mock_jobs(search_term, location, results_wanted)
+            
+            return jsonify({
+                "message": f"Mock data for '{search_term}' (JobSpy not available)",
+                "jobs": mock_jobs,
+                "count": len(mock_jobs),
+                "search_params": {
+                    "search_term": search_term,
+                    "location": location,
+                    "results_wanted": results_wanted,
+                    "site_name": site_name
+                },
+                "source": "mock_data",
+                "note": "JobSpy package not available. Install jobspy for real job scraping."
+            })
         
     except Exception as e:
         logger.error(f"Error in scrape_jobs: {str(e)}")
@@ -303,6 +318,50 @@ def generate_company_research(company_name):
         "social_media": social_media,
         "company_info": company_info
     }
+
+def generate_mock_jobs(search_term, location, results_wanted):
+    """Generate mock job data as fallback"""
+    mock_jobs = [
+        {
+            "title": f"Senior {search_term} Developer",
+            "company": "TechCorp Inc",
+            "location": location or "San Francisco, CA",
+            "job_url": "https://example.com/job/1",
+            "site": "indeed",
+            "date_posted": "2024-01-15",
+            "description": f"Join our team as a Senior {search_term} developer. We're looking for someone passionate about technology and innovation...",
+            "salary": "$120,000 - $180,000",
+            "job_type": "fulltime",
+            "is_remote": True
+        },
+        {
+            "title": f"{search_term} Engineer",
+            "company": "StartupXYZ",
+            "location": location or "New York, NY",
+            "job_url": "https://example.com/job/2",
+            "site": "linkedin",
+            "date_posted": "2024-01-14",
+            "description": f"Exciting opportunity for a {search_term} engineer to work on cutting-edge projects...",
+            "salary": "$100,000 - $150,000",
+            "job_type": "fulltime",
+            "is_remote": False
+        },
+        {
+            "title": f"Remote {search_term} Specialist",
+            "company": "GlobalTech",
+            "location": "Remote",
+            "job_url": "https://example.com/job/3",
+            "site": "glassdoor",
+            "date_posted": "2024-01-13",
+            "description": f"Fully remote position for a {search_term} specialist. Work from anywhere in the world...",
+            "salary": "$90,000 - $130,000",
+            "job_type": "fulltime",
+            "is_remote": True
+        }
+    ]
+    
+    # Return limited results based on results_wanted
+    return mock_jobs[:min(results_wanted, len(mock_jobs))]
 
 @app.errorhandler(404)
 def not_found(error):
