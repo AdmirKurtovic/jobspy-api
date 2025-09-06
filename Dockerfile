@@ -17,4 +17,4 @@ COPY . .
 EXPOSE 8000
 
 # Run the application
-CMD ["python", "minimal_app.py"]
+CMD ["python", "jobspy_api.py"]
