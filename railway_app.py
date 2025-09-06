@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Simple JobSpy API Server for Railway Deployment
-Works without JobSpy as a fallback
+Railway-optimized JobSpy API Server
 """
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from datetime import datetime
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,17 +18,34 @@ CORS(app)
 
 @app.route('/health', methods=['GET'])
 def health_check():
+    logger.info("Health check requested")
     return jsonify({
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "service": "jobspy-api-simple",
-        "message": "API is running successfully"
+        "service": "jobspy-api-railway",
+        "message": "API is running successfully",
+        "port": os.environ.get('PORT', '8000')
+    })
+
+@app.route('/', methods=['GET'])
+def root():
+    return jsonify({
+        "message": "JobSpy API Server",
+        "status": "running",
+        "endpoints": {
+            "health": "/health",
+            "scrape_jobs": "/scrape-jobs",
+            "sites": "/sites",
+            "countries": "/countries",
+            "job_types": "/job-types"
+        }
     })
 
 @app.route('/scrape-jobs', methods=['POST'])
 def scrape_jobs_endpoint():
     try:
         data = request.get_json()
+        logger.info(f"Scrape jobs request: {data}")
         
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
@@ -46,7 +63,7 @@ def scrape_jobs_endpoint():
                 "job_url": "https://example.com/job/1",
                 "site": "indeed",
                 "date_posted": "2024-01-15",
-                "description": f"Looking for a {search_term} developer...",
+                "description": f"Looking for a {search_term} developer with experience in modern technologies...",
                 "salary": "$80,000 - $120,000",
                 "job_type": "fulltime",
                 "is_remote": True
@@ -58,10 +75,22 @@ def scrape_jobs_endpoint():
                 "job_url": "https://example.com/job/2",
                 "site": "linkedin",
                 "date_posted": "2024-01-14",
-                "description": f"Join our team as a Senior {search_term} developer...",
+                "description": f"Join our team as a Senior {search_term} developer. We're looking for someone passionate about technology...",
                 "salary": "$100,000 - $150,000",
                 "job_type": "fulltime",
                 "is_remote": False
+            },
+            {
+                "title": f"Remote {search_term} Engineer",
+                "company": "GlobalTech",
+                "location": "Remote",
+                "job_url": "https://example.com/job/3",
+                "site": "glassdoor",
+                "date_posted": "2024-01-13",
+                "description": f"Fully remote position for a {search_term} engineer. Work from anywhere in the world...",
+                "salary": "$90,000 - $130,000",
+                "job_type": "fulltime",
+                "is_remote": True
             }
         ]
         
@@ -118,7 +147,7 @@ def internal_error(error):
     return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
-    import os
     port = int(os.environ.get('PORT', 8000))
+    logger.info(f"Starting server on port {port}")
     print(f"Starting server on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
