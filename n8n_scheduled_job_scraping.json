@@ -1,0 +1,303 @@
+{
+  "name": "Scheduled Job Scraping",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "value": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "search_term",
+              "value": "software engineer"
+            },
+            {
+              "name": "location",
+              "value": "San Francisco, CA"
+            },
+            {
+              "name": "results_wanted",
+              "value": "10"
+            },
+            {
+              "name": "site_name",
+              "value": "indeed,linkedin"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-search-params",
+      "name": "Set Search Params",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://jobspy-api-jlyc.onrender.com/scrape-jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "search_term",
+              "value": "={{ $json.search_term }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "results_wanted",
+              "value": "={{ parseInt($json.results_wanted) }}"
+            },
+            {
+              "name": "site_name",
+              "value": "={{ $json.site_name.split(',') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "job-scraping-api",
+      "name": "Job Scraping API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition1",
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-success",
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "search_term",
+              "value": "={{ $json.search_params.search_term }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.search_params.location }}"
+            },
+            {
+              "name": "jobs_found",
+              "value": "={{ $json.count }}"
+            },
+            {
+              "name": "search_date",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-results",
+      "name": "Format Results",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "resource": "item",
+        "values": {
+          "string": [
+            {
+              "name": "Search Term",
+              "value": "={{ $json.search_term }}"
+            },
+            {
+              "name": "Location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "Jobs Found",
+              "value": "={{ $json.jobs_found }}"
+            },
+            {
+              "name": "Search Date",
+              "value": "={{ $json.search_date }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "save-to-notion",
+      "name": "Save to Notion",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "operation": "send",
+        "subject": "Weekly Job Search Results - {{ $json.jobs_found }} jobs found",
+        "message": "Search Term: {{ $json.search_term }}\nLocation: {{ $json.location }}\nJobs Found: {{ $json.jobs_found }}\nDate: {{ $json.search_date }}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "error",
+              "value": "Job scraping failed"
+            },
+            {
+              "name": "details",
+              "value": "={{ $json }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "error-handling",
+      "name": "Error Handling",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1120, 400]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Search Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Search Params": {
+      "main": [
+        [
+          {
+            "node": "Job Scraping API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Job Scraping API": {
+      "main": [
+        [
+          {
+            "node": "Check Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Success": {
+      "main": [
+        [
+          {
+            "node": "Format Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error Handling",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Results": {
+      "main": [
+        [
+          {
+            "node": "Save to Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Notion": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 1,
+  "updatedAt": "2024-01-15T10:00:00.000Z",
+  "versionId": "1"
+}
