@@ -34,6 +34,8 @@ def root():
         "endpoints": {
             "health": "/health",
             "scrape_jobs": "/scrape-jobs",
+            "find_emails": "/find-emails",
+            "company_research": "/company-research",
             "sites": "/sites",
             "countries": "/countries",
             "job_types": "/job-types"
@@ -167,6 +169,140 @@ def get_job_types():
             "fulltime", "parttime", "contract", "internship", "temporary"
         ]
     })
+
+@app.route('/find-emails', methods=['POST'])
+def find_emails_endpoint():
+    try:
+        data = request.get_json()
+        logger.info(f"Find emails request: {data}")
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        company_name = data.get('company_name')
+        if not company_name:
+            return jsonify({"error": "company_name is required"}), 400
+        
+        # Mock company research data
+        company_data = generate_company_research(company_name)
+        
+        return jsonify({
+            "message": f"Found company information for {company_name}",
+            "company_name": company_name,
+            "website": company_data["website"],
+            "hr_emails": company_data["hr_emails"],
+            "general_emails": company_data["general_emails"],
+            "social_media": company_data["social_media"],
+            "company_info": company_data["company_info"],
+            "note": "This is mock data. For real company research, integrate with company databases and email finding services."
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in find_emails: {str(e)}")
+        return jsonify({
+            "error": f"Failed to process request: {str(e)}"
+        }), 500
+
+@app.route('/company-research', methods=['POST'])
+def company_research_endpoint():
+    try:
+        data = request.get_json()
+        logger.info(f"Company research request: {data}")
+        
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+        
+        company_name = data.get('company_name')
+        if not company_name:
+            return jsonify({"error": "company_name is required"}), 400
+        
+        # Generate comprehensive company research data
+        company_data = generate_company_research(company_name)
+        
+        return jsonify({
+            "message": f"Company research completed for {company_name}",
+            "company_name": company_name,
+            "website": company_data["website"],
+            "hr_emails": company_data["hr_emails"],
+            "general_emails": company_data["general_emails"],
+            "social_media": company_data["social_media"],
+            "company_info": company_data["company_info"],
+            "note": "This is mock data. For real company research, integrate with company databases and email finding services."
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in company_research: {str(e)}")
+        return jsonify({
+            "error": f"Failed to process request: {str(e)}"
+        }), 500
+
+def generate_company_research(company_name):
+    """Generate comprehensive company research data including website and HR emails"""
+    import random
+    
+    # Clean company name for domain generation
+    company_slug = company_name.lower().replace(" ", "").replace("inc", "").replace("corp", "").replace("llc", "").replace("ltd", "").replace("company", "")
+    
+    # Generate website
+    website_variations = [
+        f"https://www.{company_slug}.com",
+        f"https://{company_slug}.com",
+        f"https://www.{company_name.lower().replace(' ', '')}.com",
+        f"https://{company_name.lower().replace(' ', '')}.com"
+    ]
+    website = random.choice(website_variations)
+    
+    # Generate HR-specific emails
+    hr_emails = [
+        f"hr@{company_slug}.com",
+        f"human.resources@{company_slug}.com",
+        f"recruiting@{company_slug}.com",
+        f"talent@{company_slug}.com",
+        f"careers@{company_slug}.com",
+        f"jobs@{company_slug}.com",
+        f"hiring@{company_slug}.com",
+        f"people@{company_slug}.com"
+    ]
+    
+    # Generate general company emails
+    general_emails = [
+        f"info@{company_slug}.com",
+        f"contact@{company_slug}.com",
+        f"hello@{company_slug}.com",
+        f"support@{company_slug}.com",
+        f"business@{company_slug}.com",
+        f"sales@{company_slug}.com",
+        f"marketing@{company_slug}.com"
+    ]
+    
+    # Generate social media profiles
+    social_media = {
+        "linkedin": f"https://linkedin.com/company/{company_slug}",
+        "twitter": f"https://twitter.com/{company_slug}",
+        "facebook": f"https://facebook.com/{company_slug}",
+        "instagram": f"https://instagram.com/{company_slug}"
+    }
+    
+    # Generate company info
+    company_info = {
+        "industry": random.choice(["Technology", "Healthcare", "Finance", "Manufacturing", "Retail", "Consulting", "Education", "Real Estate"]),
+        "size": random.choice(["1-10 employees", "11-50 employees", "51-200 employees", "201-500 employees", "500+ employees"]),
+        "location": random.choice(["San Francisco, CA", "New York, NY", "Austin, TX", "Seattle, WA", "Boston, MA", "Chicago, IL", "Los Angeles, CA"]),
+        "founded": random.randint(1990, 2023),
+        "description": f"{company_name} is a leading company in their industry, focused on innovation and growth."
+    }
+    
+    # Return 3-5 random HR emails and 2-4 general emails
+    selected_hr_emails = random.sample(hr_emails, min(random.randint(3, 5), len(hr_emails)))
+    selected_general_emails = random.sample(general_emails, min(random.randint(2, 4), len(general_emails)))
+    
+    return {
+        "website": website,
+        "hr_emails": selected_hr_emails,
+        "general_emails": selected_general_emails,
+        "social_media": social_media,
+        "company_info": company_info
+    }
 
 @app.errorhandler(404)
 def not_found(error):
