@@ -1,0 +1,251 @@
+{
+  "name": "Designer Apply Pipeline - Simple",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sample job data for testing\nconst sampleJobs = [\n  {\n    title: 'Product Designer',\n    company: 'Tech Corp',\n    description: 'We are looking for a Product Designer with Figma experience. Remote work available.',\n    company_url: 'https://techcorp.com/careers',\n    resume_markdown: '# John Doe\\n\\n**Product Designer** with 5+ years experience\\n\\n## Experience\\n- Led UI/UX design for mobile apps\\n- Increased user engagement by 25%\\n- Proficient in Figma, Sketch, Adobe Creative Suite\\n\\n## Skills\\n- User Research\\n- Prototyping\\n- Design Systems\\n- Remote Collaboration'\n  }\n];\n\nreturn sampleJobs.map(job => ({ json: job }));"
+      },
+      "id": "sample-data",
+      "name": "Sample Job Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "limit": 5
+      },
+      "id": "limit-jobs",
+      "name": "Limit Jobs",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.2
+        },
+        "systemMessage": "You are a resume matching expert. Analyze how well a resume matches a job description. Return a JSON object with: match_score (0-1), reasons (array of strings), and company_website (string or null).",
+        "messages": [
+          {
+            "text": "Resume:\\n{{$json.resume_markdown}}\\n\\nJob Title: {{$json.title}}\\nCompany: {{$json.company}}\\nDescription: {{$json.description}}\\n\\nRate the match and provide reasons.",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "match-resume",
+      "name": "Match Resume to Job",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI response and check conditions\nconst response = $json.answer || '{}';\nlet matchData = {};\n\ntry {\n  matchData = JSON.parse(response);\n} catch (e) {\n  matchData = { match_score: 0, reasons: ['Parse error'], company_website: null };\n}\n\nconst hasCompanySite = !!(matchData.company_website || $json.company_url);\nconst goodMatch = (matchData.match_score || 0) >= 0.6;\nconst shouldProceed = goodMatch && hasCompanySite;\n\nreturn {\n  json: {\n    ...$json,\n    match_score: matchData.match_score || 0,\n    match_reasons: matchData.reasons || [],\n    company_website: matchData.company_website,\n    has_company_site: hasCompanySite,\n    should_proceed: shouldProceed\n  }\n};"
+      },
+      "id": "process-match",
+      "name": "Process Match Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.should_proceed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-matches",
+      "name": "Filter Good Matches",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.4
+        },
+        "systemMessage": "You are a resume customization expert. Create a tailored resume for a specific job. Return only the customized resume in Markdown format.",
+        "messages": [
+          {
+            "text": "Original Resume:\\n{{$json.resume_markdown}}\\n\\nJob Details:\\nTitle: {{$json.title}}\\nCompany: {{$json.company}}\\nDescription: {{$json.description}}\\n\\nCustomize this resume for the job. Focus on relevant skills and achievements.",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "customize-resume",
+      "name": "Customize Resume",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract customized resume from OpenAI response\nconst customizedResume = $json.answer || $json.resume_markdown || '';\nreturn {\n  json: {\n    ...$json,\n    customized_resume: customizedResume\n  }\n};"
+      },
+      "id": "extract-resume",
+      "name": "Extract Customized Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "value": "={{ $json.customized_resume }}"
+      },
+      "id": "convert-html",
+      "name": "Convert to HTML",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create a simple output for testing\nreturn {\n  json: {\n    job_title: $json.title,\n    company: $json.company,\n    match_score: $json.match_score,\n    customized_resume: $json.customized_resume,\n    html_resume: $json.html,\n    status: 'Ready for Google Docs and Gmail integration'\n  }\n};"
+      },
+      "id": "final-output",
+      "name": "Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 200]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sample Job Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sample Job Data": {
+      "main": [
+        [
+          {
+            "node": "Limit Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit Jobs": {
+      "main": [
+        [
+          {
+            "node": "Match Resume to Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Resume to Job": {
+      "main": [
+        [
+          {
+            "node": "Process Match Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Match Results": {
+      "main": [
+        [
+          {
+            "node": "Filter Good Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Good Matches": {
+      "main": [
+        [
+          {
+            "node": "Customize Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customize Resume": {
+      "main": [
+        [
+          {
+            "node": "Extract Customized Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customized Resume": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to HTML": {
+      "main": [
+        [
+          {
+            "node": "Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "designer-apply-pipeline-simple",
+  "tags": ["designer", "apply", "resume", "openai", "test"]
+}
+
+
+
+

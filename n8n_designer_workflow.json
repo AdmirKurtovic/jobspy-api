@@ -29,7 +29,7 @@
     {
       "parameters": {
         "httpMethod": "POST",
-        "url": "http://localhost:8000/scrape-jobs",
+        "url": "https://579a981d74db.ngrok-free.app/scrape-jobs",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [

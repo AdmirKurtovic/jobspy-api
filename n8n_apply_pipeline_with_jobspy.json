@@ -1,0 +1,402 @@
+{
+  "name": "Designer Apply Pipeline - With JobSpy",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare job search parameters for JobSpy API\nconst searchParams = {\n  search_term: 'Product Designer UI UX Designer',\n  location: 'Worldwide',\n  is_remote: true,\n  results_wanted: 20,\n  site_name: ['indeed', 'linkedin', 'glassdoor'],\n  country_indeed: 'USA',\n  hours_old: 168,\n  job_type: 'fulltime',\n  linkedin_fetch_description: true,\n  description_format: 'markdown'\n};\n\nreturn { json: searchParams };"
+      },
+      "id": "prepare-search",
+      "name": "Prepare Job Search",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "url": "https://579a981d74db.ngrok-free.app/scrape-jobs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "search_term",
+              "value": "={{ $json.search_term }}"
+            },
+            {
+              "name": "location",
+              "value": "={{ $json.location }}"
+            },
+            {
+              "name": "is_remote",
+              "value": "={{ $json.is_remote }}"
+            },
+            {
+              "name": "results_wanted",
+              "value": "={{ $json.results_wanted }}"
+            },
+            {
+              "name": "site_name",
+              "value": "={{ $json.site_name }}"
+            },
+            {
+              "name": "country_indeed",
+              "value": "={{ $json.country_indeed }}"
+            },
+            {
+              "name": "hours_old",
+              "value": "={{ $json.hours_old }}"
+            },
+            {
+              "name": "job_type",
+              "value": "={{ $json.job_type }}"
+            },
+            {
+              "name": "linkedin_fetch_description",
+              "value": "={{ $json.linkedin_fetch_description }}"
+            },
+            {
+              "name": "description_format",
+              "value": "={{ $json.description_format }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "scrape-jobs",
+      "name": "Scrape Jobs from JobSpy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "check-success",
+      "name": "Check API Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process jobs from JobSpy API and add resume template\nconst response = $input.first().json;\nconst jobs = response.jobs || [];\n\n// Your base resume template - customize this with your actual resume\nconst baseResume = `# John Doe\n\n**Product Designer** with 5+ years of experience in UI/UX design\n\n## Professional Summary\nExperienced Product Designer specializing in user-centered design, prototyping, and design systems. Proven track record of improving user engagement and conversion rates.\n\n## Core Skills\n- **Design Tools**: Figma, Sketch, Adobe Creative Suite, Principle\n- **Research**: User interviews, usability testing, A/B testing\n- **Prototyping**: High-fidelity prototypes, interactive mockups\n- **Design Systems**: Component libraries, design tokens\n- **Collaboration**: Cross-functional team leadership, stakeholder management\n\n## Experience\n\n### Senior Product Designer | TechCorp (2020-2024)\n- Led redesign of mobile app increasing user engagement by 25%\n- Designed and implemented design system used by 15+ product teams\n- Conducted user research with 200+ participants\n- Collaborated with PMs and engineers to ship 12+ features\n\n### Product Designer | StartupXYZ (2018-2020)\n- Designed end-to-end user experience for B2B SaaS platform\n- Created wireframes, prototypes, and high-fidelity designs\n- Improved conversion rate by 18% through iterative design process\n\n## Education\n- Bachelor's in Design | University of Design (2018)\n- UX Design Certification | Design Institute\n\n## Portfolio\n- [Portfolio Website](https://johndoe.design)\n- [Dribbble Profile](https://dribbble.com/johndoe)`;\n\n// Process and enhance each job\nconst processedJobs = jobs.map((job, index) => {\n  // Filter for design-related roles\n  const title = (job.title || '').toLowerCase();\n  const description = (job.description || '').toLowerCase();\n  \n  const designKeywords = [\n    'designer', 'design', 'ui', 'ux', 'user experience', 'user interface',\n    'product design', 'visual design', 'interaction design', 'ux/ui',\n    'figma', 'sketch', 'adobe', 'prototype', 'wireframe', 'usability'\n  ];\n  \n  const isDesignRole = designKeywords.some(keyword => \n    title.includes(keyword) || description.includes(keyword)\n  );\n  \n  if (!isDesignRole) return null;\n  \n  return {\n    id: job.id || `job-${index}`,\n    title: job.title || 'N/A',\n    company: job.company || 'N/A',\n    location: job.location || 'N/A',\n    is_remote: job.is_remote || false,\n    job_url: job.job_url || '',\n    job_url_direct: job.job_url_direct || '',\n    company_url: job.company_url || '',\n    description: job.description || '',\n    job_type: job.job_type || [],\n    date_posted: job.date_posted || null,\n    site: job.site || 'unknown',\n    min_salary: job.min_amount || null,\n    max_salary: job.max_amount || null,\n    currency: job.currency || null,\n    resume_markdown: baseResume\n  };\n}).filter(job => job !== null);\n\n// Return individual job items for processing\nreturn processedJobs.map(job => ({ json: job }));"
+      },
+      "id": "process-jobs",
+      "name": "Process Jobs + Add Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle API error\nreturn {\n  json: {\n    error: 'JobSpy API failed',\n    message: 'Could not fetch jobs from JobSpy API'\n  }\n};"
+      },
+      "id": "handle-error",
+      "name": "Handle API Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "limit": 10
+      },
+      "id": "limit-jobs",
+      "name": "Limit to 10 Jobs",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.2
+        },
+        "systemMessage": "You are a resume matching expert. Analyze how well a resume matches a job description. Return a JSON object with: match_score (0-1), reasons (array of strings), and company_website (string or null).",
+        "messages": [
+          {
+            "text": "Resume:\\n{{$json.resume_markdown}}\\n\\nJob Title: {{$json.title}}\\nCompany: {{$json.company}}\\nDescription: {{$json.description}}\\n\\nRate the match and provide reasons.",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "match-resume",
+      "name": "Match Resume to Job",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse OpenAI response and check conditions\nconst response = $json.answer || '{}';\nlet matchData = {};\n\ntry {\n  matchData = JSON.parse(response);\n} catch (e) {\n  matchData = { match_score: 0, reasons: ['Parse error'], company_website: null };\n}\n\nconst hasCompanySite = !!(matchData.company_website || $json.company_url);\nconst goodMatch = (matchData.match_score || 0) >= 0.6;\nconst shouldProceed = goodMatch && hasCompanySite;\n\nreturn {\n  json: {\n    ...$json,\n    match_score: matchData.match_score || 0,\n    match_reasons: matchData.reasons || [],\n    company_website: matchData.company_website,\n    has_company_site: hasCompanySite,\n    should_proceed: shouldProceed\n  }\n};"
+      },
+      "id": "process-match",
+      "name": "Process Match Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.should_proceed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-matches",
+      "name": "Filter Good Matches",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.4
+        },
+        "systemMessage": "You are a resume customization expert. Create a tailored resume for a specific job. Return only the customized resume in Markdown format.",
+        "messages": [
+          {
+            "text": "Original Resume:\\n{{$json.resume_markdown}}\\n\\nJob Details:\\nTitle: {{$json.title}}\\nCompany: {{$json.company}}\\nDescription: {{$json.description}}\\n\\nCustomize this resume for the job. Focus on relevant skills and achievements.",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "customize-resume",
+      "name": "Customize Resume",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [2220, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract customized resume from OpenAI response\nconst customizedResume = $json.answer || $json.resume_markdown || '';\nreturn {\n  json: {\n    ...$json,\n    customized_resume: customizedResume\n  }\n};"
+      },
+      "id": "extract-resume",
+      "name": "Extract Customized Resume",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2440, 100]
+    },
+    {
+      "parameters": {
+        "value": "={{ $json.customized_resume }}"
+      },
+      "id": "convert-html",
+      "name": "Convert to HTML",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [2660, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create final output with job details and customized resume\nreturn {\n  json: {\n    job_title: $json.title,\n    company: $json.company,\n    location: $json.location,\n    is_remote: $json.is_remote,\n    job_url: $json.job_url,\n    company_url: $json.company_url,\n    match_score: $json.match_score,\n    match_reasons: $json.match_reasons,\n    customized_resume: $json.customized_resume,\n    html_resume: $json.html,\n    status: 'Ready for application',\n    processed_at: new Date().toISOString()\n  }\n};"
+      },
+      "id": "final-output",
+      "name": "Final Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 100]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Job Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Job Search": {
+      "main": [
+        [
+          {
+            "node": "Scrape Jobs from JobSpy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scrape Jobs from JobSpy": {
+      "main": [
+        [
+          {
+            "node": "Check API Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check API Success": {
+      "main": [
+        [
+          {
+            "node": "Process Jobs + Add Resume",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle API Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Jobs + Add Resume": {
+      "main": [
+        [
+          {
+            "node": "Limit to 10 Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit to 10 Jobs": {
+      "main": [
+        [
+          {
+            "node": "Match Resume to Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Resume to Job": {
+      "main": [
+        [
+          {
+            "node": "Process Match Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Match Results": {
+      "main": [
+        [
+          {
+            "node": "Filter Good Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Good Matches": {
+      "main": [
+        [
+          {
+            "node": "Customize Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Customize Resume": {
+      "main": [
+        [
+          {
+            "node": "Extract Customized Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Customized Resume": {
+      "main": [
+        [
+          {
+            "node": "Convert to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to HTML": {
+      "main": [
+        [
+          {
+            "node": "Final Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "id": "designer-apply-pipeline-with-jobspy",
+  "tags": ["designer", "apply", "resume", "openai", "jobspy", "real-data"]
+}
+
+
+
+

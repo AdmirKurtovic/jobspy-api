@@ -1,0 +1,254 @@
+{
+  "name": "Designer Apply Pipeline",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [ -80, 300 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input is list of jobs from previous workflow or call API directly here.\n// Provide a minimal example if none provided to allow import/run.\nconst items = Array.isArray($json.jobs) ? $json.jobs : [];\nconst fallbackJob = {\n  title: 'Product Designer',\n  company: 'Example Co',\n  description: 'We seek a UI/UX/Product Designer with Figma experience. Remote-friendly.',\n  company_url: 'https://example.com/careers',\n  resume_markdown: $json.resume_markdown || '# Your Name\\n\\n**Product Designer** with 5+ years...\\n- Figma, prototyping, UX research\\n- Led redesign increasing conversion by 18%\\n'\n};\nconst source = items.length ? items : [fallbackJob];\nreturn source.map(j => ({ json: j }));"
+      },
+      "id": "ingest-jobs",
+      "name": "Ingest Jobs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [120, 300]
+    },
+    {
+      "parameters": {
+        "limit": 10
+      },
+      "id": "limit-10",
+      "name": "Limiter (10)",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [320, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.2
+        },
+        "systemMessage": "You are an expert resume matcher. Score 0..1 how well the user's resume matches the job description. Return JSON: {match_score:number, reasons:string[], company_website:string|null}",
+        "messages": [
+          {
+            "text": "Resume:\n{{$json.resume_markdown}}\n\nJob Title: {{$json.title}}\nCompany: {{$json.company}}\nDescription:\n{{$json.description}}\n\nReturn JSON only with fields match_score (0..1), reasons (array), company_website (URL if present in job/company fields or description).",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "openai-match",
+      "name": "Match job with resume (OpenAI)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [540, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-api-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = (()=>{ try { return JSON.parse($json.answer || '{}'); } catch(e){ return {}; }})();\nconst hasSite = !!(parsed.company_website || $json.company_url || $json.company_url_direct);\nconst ok = (parsed.match_score || 0) >= 0.6 && hasSite;\nreturn { json: { ...$json, match: parsed, has_company_site: hasSite, pass: ok } };"
+      },
+      "id": "parse-and-flag",
+      "name": "Parse Match + Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [780, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.pass }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-pass",
+      "name": "Filter (match && company site)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [980, 300]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.4
+        },
+        "systemMessage": "You customize resumes for specific jobs. Return polished resume in Markdown.",
+        "messages": [
+          {
+            "text": "Here is the candidate's base resume in Markdown:\n{{$json.resume_markdown}}\n\nCustomize it for this job (focus on measurable outcomes and relevant skills).\nJob:\nTitle: {{$json.title}}\nCompany: {{$json.company}}\nDescription:\n{{$json.description}}\n\nReturn only the customized resume in Markdown.",
+            "type": "user"
+          }
+        ]
+      },
+      "id": "openai-customize",
+      "name": "Customize resume (OpenAI)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 4,
+      "position": [1200, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "openai-api-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ensure we only keep top 10 customized resumes (safety)\nreturn $items.slice(0, 10);"
+      },
+      "id": "limit-resumes-10",
+      "name": "Limiter resume to 10",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const markdown = $json.answer || $json.customized_markdown || '';\nreturn { json: { ...$json, customized_markdown: markdown } };"
+      },
+      "id": "extract-markdown",
+      "name": "Extract Markdown",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "value": "={{ $json.customized_markdown }}"
+      },
+      "id": "md-to-html",
+      "name": "Markdown to HTML",
+      "type": "n8n-nodes-base.markdown",
+      "typeVersion": 1,
+      "position": [1800, 300]
+    },
+    {
+      "parameters": {
+        "documentName": "={{ $json.title || 'Customized Resume' }} - {{$json.company || 'Company'}}",
+        "documentContent": "={{ $json.html }}"
+      },
+      "id": "google-docs-create",
+      "name": "Create customized resume (Google Doc)",
+      "type": "n8n-nodes-base.googleDocs",
+      "typeVersion": 2,
+      "position": [2000, 300],
+      "credentials": {
+        "googleDocsOAuth2Api": {
+          "id": "google-docs-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fileId": "={{ $json.id }}",
+        "role": "reader",
+        "type": "anyone"
+      },
+      "id": "drive-share",
+      "name": "Share file (Google Drive)",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [2200, 300],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "google-drive-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Placeholder: attach resume URL and pick email from previous step or external service\nconst email = $json.candidate_email || $json.hiring_manager_email || null;\nreturn { json: { ...$json, email } };"
+      },
+      "id": "get-email",
+      "name": "Get Email (external)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              },
+              "negate": true
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-email",
+      "name": "Filter (if email exist)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2600, 300]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "createDraft",
+        "toList": "={{ $json.email }}",
+        "subject": "={{ 'Application: ' + ($json.title || 'Product Designer') + ' at ' + ($json.company || '') }}",
+        "text": "={{ 'Hi,\\n\\nI\\'m excited to apply for ' + ($json.title || 'the role') + ' at ' + ($json.company || 'your company') + '. Please find my customized resume here: ' + ($json.webViewLink || $json.alternateLink || '') + '\\n\\nBest,\\n[Your Name]' }}"
+      },
+      "id": "gmail-draft",
+      "name": "Create draft (Gmail)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 3,
+      "position": [2800, 300],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gmail-credentials"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[ { "node": "Ingest Jobs", "type": "main", "index": 0 } ]] },
+    "Ingest Jobs": { "main": [[ { "node": "Limiter (10)", "type": "main", "index": 0 } ]] },
+    "Limiter (10)": { "main": [[ { "node": "Match job with resume (OpenAI)", "type": "main", "index": 0 } ]] },
+    "Match job with resume (OpenAI)": { "main": [[ { "node": "Parse Match + Flag", "type": "main", "index": 0 } ]] },
+    "Parse Match + Flag": { "main": [[ { "node": "Filter (match && company site)", "type": "main", "index": 0 } ]] },
+    "Filter (match && company site)": { "main": [[ { "node": "Customize resume (OpenAI)", "type": "main", "index": 0 } ]] },
+    "Customize resume (OpenAI)": { "main": [[ { "node": "Limiter resume to 10", "type": "main", "index": 0 } ]] },
+    "Limiter resume to 10": { "main": [[ { "node": "Extract Markdown", "type": "main", "index": 0 } ]] },
+    "Extract Markdown": { "main": [[ { "node": "Markdown to HTML", "type": "main", "index": 0 } ]] },
+    "Markdown to HTML": { "main": [[ { "node": "Create customized resume (Google Doc)", "type": "main", "index": 0 } ]] },
+    "Create customized resume (Google Doc)": { "main": [[ { "node": "Share file (Google Drive)", "type": "main", "index": 0 } ]] },
+    "Share file (Google Drive)": { "main": [[ { "node": "Get Email (external)", "type": "main", "index": 0 } ]] },
+    "Get Email (external)": { "main": [[ { "node": "Filter (if email exist)", "type": "main", "index": 0 } ]] },
+    "Filter (if email exist)": { "main": [[ { "node": "Create draft (Gmail)", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "designer-apply-pipeline",
+  "tags": ["designer", "apply", "resume", "gmail", "google-docs", "openai"]
+}
