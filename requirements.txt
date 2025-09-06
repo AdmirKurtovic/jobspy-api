@@ -10,3 +10,4 @@ tls-client==1.0.1
 markdownify==1.1.0
 regex==2024.4.28
 gunicorn==21.2.0
+jobspy==0.0.20
